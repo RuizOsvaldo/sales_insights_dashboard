@@ -128,12 +128,14 @@ with col1:
 
 with col2:
     total_profit = df_filtered["Profit"].sum()
-    profit_change = total_profit - df["Profit"].sum() + total_profit  # Simple change calculation
     st.metric("Total Profit", f"${total_profit:,.0f}")
 
 with col3:
-    avg_profit_margin = df_filtered["Profit Margin"].mean()
-    st.metric("Avg Profit Margin", f"{avg_profit_margin:.1f}%")
+    if "Profit Margin" in df_filtered.columns:
+        avg_profit_margin = df_filtered["Profit Margin"].mean()
+        st.metric("Avg Profit Margin", f"{avg_profit_margin:.1f}%")
+    else:
+        st.metric("Avg Profit Margin", "N/A")
 
 with col4:
     total_orders = len(df_filtered)
@@ -155,41 +157,49 @@ with tab1:
     
     with col1:
         # Sales by Category
-        category_sales = df_filtered.groupby("Category")["Sales"].sum().reset_index()
-        fig_category = px.bar(
-            category_sales,
-            x="Category", 
-            y="Sales",
-            title="Sales by Category",
-            color="Sales",
-            color_continuous_scale="blues"
-        )
-        fig_category.update_layout(showlegend=False)
-        st.plotly_chart(fig_category, use_container_width=True)
+        try:
+            category_sales = df_filtered.groupby("Category")["Sales"].sum().reset_index()
+            fig_category = px.bar(
+                category_sales,
+                x="Category", 
+                y="Sales",
+                title="Sales by Category",
+                color="Sales",
+                color_continuous_scale="blues"
+            )
+            fig_category.update_layout(showlegend=False)
+            st.plotly_chart(fig_category, use_container_width=True)
+        except Exception as e:
+            st.error("Error creating category sales chart")
     
     with col2:
         # Profit by Category
-        category_profit = df_filtered.groupby("Category")["Profit"].sum().reset_index()
-        fig_profit = px.pie(
-            category_profit,
-            values="Profit",
-            names="Category", 
-            title="Profit Distribution by Category"
-        )
-        st.plotly_chart(fig_profit, use_container_width=True)
+        try:
+            category_profit = df_filtered.groupby("Category")["Profit"].sum().reset_index()
+            fig_profit = px.pie(
+                category_profit,
+                values="Profit",
+                names="Category", 
+                title="Profit Distribution by Category"
+            )
+            st.plotly_chart(fig_profit, use_container_width=True)
+        except Exception as e:
+            st.error("Error creating profit distribution chart")
     
     # Sales vs Profit Scatter Plot
     st.subheader("Sales vs Profit Analysis")
-    fig_scatter = px.scatter(
-        df_filtered,
-        x="Sales",
-        y="Profit", 
-        color="Category",
-        size="Profit Margin",
-        hover_data=["Region", "Order Date"],
-        title="Sales vs Profit by Category (Size = Profit Margin)"
-    )
-    st.plotly_chart(fig_scatter, use_container_width=True)
+    try:
+        fig_scatter = px.scatter(
+            df_filtered,
+            x="Sales",
+            y="Profit", 
+            color="Category",
+            hover_data=["Region", "Order Date"],
+            title="Sales vs Profit by Category"
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
+    except Exception as e:
+        st.error("Error creating scatter plot")
 
 with tab2:
     st.subheader("Performance Metrics")
@@ -198,82 +208,107 @@ with tab2:
     
     with col1:
         # Profit Margin by Region
-        margin_by_region = df_filtered.groupby("Region")["Profit Margin"].mean().reset_index()
-        fig_margin = px.bar(
-            margin_by_region,
-            x="Region",
-            y="Profit Margin",
-            title="Average Profit Margin by Region",
-            color="Profit Margin",
-            color_continuous_scale="greens"
-        )
-        st.plotly_chart(fig_margin, use_container_width=True)
+        try:
+            if "Profit Margin" in df_filtered.columns:
+                margin_by_region = df_filtered.groupby("Region")["Profit Margin"].mean().reset_index()
+                fig_margin = px.bar(
+                    margin_by_region,
+                    x="Region",
+                    y="Profit Margin",
+                    title="Average Profit Margin by Region",
+                    color="Profit Margin",
+                    color_continuous_scale="greens"
+                )
+                st.plotly_chart(fig_margin, use_container_width=True)
+            else:
+                st.info("Profit margin data not available")
+        except Exception as e:
+            st.error("Error creating profit margin chart")
     
     with col2:
         # Top Performing Orders
-        st.subheader("Top 10 Orders by Profit")
-        top_orders = df_filtered.nlargest(10, "Profit")[["Order ID", "Region", "Category", "Sales", "Profit", "Profit Margin"]]
-        st.dataframe(top_orders, use_container_width=True)
+        try:
+            st.subheader("Top 10 Orders by Profit")
+            top_orders = df_filtered.nlargest(10, "Profit")
+            display_columns = ["Order ID", "Region", "Category", "Sales", "Profit"]
+            if "Profit Margin" in df_filtered.columns:
+                display_columns.append("Profit Margin")
+            
+            st.dataframe(top_orders[display_columns], use_container_width=True)
+        except Exception as e:
+            st.error("Error displaying top orders")
     
     # Performance summary table
-    st.subheader("Performance Summary by Category & Region")
-    summary = df_filtered.groupby(["Category", "Region"]).agg({
-        "Sales": ["sum", "mean"],
-        "Profit": ["sum", "mean"], 
-        "Profit Margin": "mean",
-        "Order ID": "count"
-    }).round(2)
-    
-    # Flatten column names
-    summary.columns = ["Total Sales", "Avg Sales", "Total Profit", "Avg Profit", "Avg Margin %", "Order Count"]
-    summary = summary.reset_index()
-    st.dataframe(summary, use_container_width=True)
+    try:
+        st.subheader("Performance Summary by Category & Region")
+        summary = df_filtered.groupby(["Category", "Region"]).agg({
+            "Sales": ["sum", "mean"],
+            "Profit": ["sum", "mean"], 
+            "Order ID": "count"
+        }).round(2)
+        
+        # Flatten column names
+        summary.columns = ["Total Sales", "Avg Sales", "Total Profit", "Avg Profit", "Order Count"]
+        summary = summary.reset_index()
+        
+        # Add profit margin if possible
+        if "Profit Margin" in df_filtered.columns:
+            margin_summary = df_filtered.groupby(["Category", "Region"])["Profit Margin"].mean().reset_index()
+            summary = summary.merge(margin_summary, on=["Category", "Region"], how="left")
+        
+        st.dataframe(summary, use_container_width=True)
+    except Exception as e:
+        st.error("Error creating performance summary")
 
 with tab3:
     st.subheader("Regional Insights")
     
-    # Regional comparison
-    regional_data = df_filtered.groupby("Region").agg({
-        "Sales": "sum",
-        "Profit": "sum",
-        "Order ID": "count"
-    }).reset_index()
-    regional_data["Avg Order Value"] = regional_data["Sales"] / regional_data["Order ID"]
-    regional_data.rename(columns={"Order ID": "Total Orders"}, inplace=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Regional Sales Comparison
-        fig_regional_sales = px.bar(
-            regional_data,
-            x="Region",
-            y="Sales", 
-            title="Total Sales by Region",
-            color="Sales",
-            color_continuous_scale="viridis"
-        )
-        st.plotly_chart(fig_regional_sales, use_container_width=True)
-    
-    with col2:
-        # Regional Orders vs Average Order Value
-        fig_orders_value = px.scatter(
-            regional_data,
-            x="Total Orders",
-            y="Avg Order Value",
-            size="Sales",
-            color="Region",
-            title="Orders vs Average Order Value by Region"
-        )
-        st.plotly_chart(fig_orders_value, use_container_width=True)
-    
-    # Regional performance table
-    st.subheader("Regional Performance Metrics")
-    regional_display = regional_data.copy()
-    regional_display["Sales"] = regional_display["Sales"].apply(lambda x: f"${x:,.0f}")
-    regional_display["Profit"] = regional_display["Profit"].apply(lambda x: f"${x:,.0f}")
-    regional_display["Avg Order Value"] = regional_display["Avg Order Value"].apply(lambda x: f"${x:.2f}")
-    st.dataframe(regional_display, use_container_width=True)
+    try:
+        # Regional comparison
+        regional_data = df_filtered.groupby("Region").agg({
+            "Sales": "sum",
+            "Profit": "sum",
+            "Order ID": "count"
+        }).reset_index()
+        regional_data["Avg Order Value"] = regional_data["Sales"] / regional_data["Order ID"]
+        regional_data.rename(columns={"Order ID": "Total Orders"}, inplace=True)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Regional Sales Comparison
+            fig_regional_sales = px.bar(
+                regional_data,
+                x="Region",
+                y="Sales", 
+                title="Total Sales by Region",
+                color="Sales",
+                color_continuous_scale="viridis"
+            )
+            st.plotly_chart(fig_regional_sales, use_container_width=True)
+        
+        with col2:
+            # Regional Orders vs Average Order Value
+            fig_orders_value = px.scatter(
+                regional_data,
+                x="Total Orders",
+                y="Avg Order Value",
+                size="Sales",
+                color="Region",
+                title="Orders vs Average Order Value by Region"
+            )
+            st.plotly_chart(fig_orders_value, use_container_width=True)
+        
+        # Regional performance table
+        st.subheader("Regional Performance Metrics")
+        regional_display = regional_data.copy()
+        regional_display["Sales"] = regional_display["Sales"].apply(lambda x: f"${x:,.0f}")
+        regional_display["Profit"] = regional_display["Profit"].apply(lambda x: f"${x:,.0f}")
+        regional_display["Avg Order Value"] = regional_display["Avg Order Value"].apply(lambda x: f"${x:.2f}")
+        st.dataframe(regional_display, use_container_width=True)
+        
+    except Exception as e:
+        st.error("Error creating regional analysis")
 
 with tab4:
     st.subheader("Time-Based Analysis")
@@ -282,72 +317,109 @@ with tab4:
     
     with col1:
         # Monthly Sales Trend
-        monthly_data = df_filtered.groupby("Month")["Sales"].sum().reset_index()
-        fig_monthly = px.line(
-            monthly_data,
-            x="Month",
-            y="Sales",
-            title="Monthly Sales Trend",
-            markers=True
-        )
-        fig_monthly.update_xaxis(title="Month")
-        fig_monthly.update_yaxis(title="Sales ($)")
-        st.plotly_chart(fig_monthly, use_container_width=True)
+        try:
+            monthly_data = df_filtered.groupby("Month")["Sales"].sum().reset_index()
+            
+            if not monthly_data.empty and len(monthly_data) > 0:
+                fig_monthly = px.line(
+                    monthly_data,
+                    x="Month",
+                    y="Sales",
+                    title="Monthly Sales Trend",
+                    markers=True
+                )
+                # Use update_layout instead of update_xaxis
+                fig_monthly.update_layout(
+                    xaxis_title="Month",
+                    yaxis_title="Sales ($)"
+                )
+                st.plotly_chart(fig_monthly, use_container_width=True)
+            else:
+                st.info("No data available for monthly trend analysis")
+        except Exception as e:
+            st.error("Error creating monthly sales chart")
     
     with col2:
         # Monthly Profit Trend  
-        monthly_profit = df_filtered.groupby("Month")["Profit"].sum().reset_index()
-        fig_monthly_profit = px.line(
-            monthly_profit,
-            x="Month", 
-            y="Profit",
-            title="Monthly Profit Trend",
-            markers=True,
-            line_shape="spline"
-        )
-        fig_monthly_profit.update_traces(line_color="green")
-        st.plotly_chart(fig_monthly_profit, use_container_width=True)
+        try:
+            monthly_profit = df_filtered.groupby("Month")["Profit"].sum().reset_index()
+            
+            if not monthly_profit.empty and len(monthly_profit) > 0:
+                fig_monthly_profit = px.line(
+                    monthly_profit,
+                    x="Month", 
+                    y="Profit",
+                    title="Monthly Profit Trend",
+                    markers=True
+                )
+                fig_monthly_profit.update_traces(line_color="green")
+                fig_monthly_profit.update_layout(
+                    xaxis_title="Month",
+                    yaxis_title="Profit ($)"
+                )
+                st.plotly_chart(fig_monthly_profit, use_container_width=True)
+            else:
+                st.info("No data available for monthly profit analysis")
+        except Exception as e:
+            st.error("Error creating monthly profit chart")
     
     # Combined Sales & Profit Trend
     st.subheader("Combined Sales & Profit Trends")
     
-    fig_combined = make_subplots(specs=[[{"secondary_y": True}]])
-    
-    # Add Sales trace
-    fig_combined.add_trace(
-        go.Scatter(x=monthly_data["Month"], y=monthly_data["Sales"], name="Sales", line=dict(color="blue")),
-        secondary_y=False,
-    )
-    
-    # Add Profit trace
-    fig_combined.add_trace(
-        go.Scatter(x=monthly_profit["Month"], y=monthly_profit["Profit"], name="Profit", line=dict(color="green")),
-        secondary_y=True,
-    )
-    
-    fig_combined.update_xaxes(title_text="Month")
-    fig_combined.update_yaxes(title_text="Sales ($)", secondary_y=False)
-    fig_combined.update_yaxes(title_text="Profit ($)", secondary_y=True)
-    fig_combined.update_layout(title_text="Monthly Sales & Profit Trends")
-    
-    st.plotly_chart(fig_combined, use_container_width=True)
+    try:
+        monthly_data = df_filtered.groupby("Month")["Sales"].sum().reset_index()
+        monthly_profit = df_filtered.groupby("Month")["Profit"].sum().reset_index()
+        
+        if not monthly_data.empty and not monthly_profit.empty and len(monthly_data) > 0:
+            fig_combined = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            # Add Sales trace
+            fig_combined.add_trace(
+                go.Scatter(x=monthly_data["Month"], y=monthly_data["Sales"], name="Sales", line=dict(color="blue")),
+                secondary_y=False,
+            )
+            
+            # Add Profit trace
+            fig_combined.add_trace(
+                go.Scatter(x=monthly_profit["Month"], y=monthly_profit["Profit"], name="Profit", line=dict(color="green")),
+                secondary_y=True,
+            )
+            
+            # Update layout
+            fig_combined.update_layout(title_text="Monthly Sales & Profit Trends")
+            fig_combined.update_xaxes(title_text="Month")
+            fig_combined.update_yaxes(title_text="Sales ($)", secondary_y=False)
+            fig_combined.update_yaxes(title_text="Profit ($)", secondary_y=True)
+            
+            st.plotly_chart(fig_combined, use_container_width=True)
+        else:
+            st.info("Insufficient data for combined trend analysis")
+    except Exception as e:
+        st.error("Error creating combined trend chart")
     
     # Time-based insights
     st.subheader("Time-Based Insights")
     
-    # Calculate growth rates
-    if len(monthly_data) > 1:
-        latest_sales = monthly_data["Sales"].iloc[-1]
-        previous_sales = monthly_data["Sales"].iloc[-2] if len(monthly_data) > 1 else latest_sales
-        growth_rate = ((latest_sales - previous_sales) / previous_sales * 100) if previous_sales != 0 else 0
+    try:
+        monthly_data = df_filtered.groupby("Month")["Sales"].sum().reset_index()
         
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Latest Month Sales", f"${latest_sales:,.0f}")
-        with col2:
-            st.metric("Previous Month Sales", f"${previous_sales:,.0f}")  
-        with col3:
-            st.metric("Month-over-Month Growth", f"{growth_rate:.1f}%")
+        # Calculate growth rates
+        if len(monthly_data) > 1:
+            latest_sales = monthly_data["Sales"].iloc[-1]
+            previous_sales = monthly_data["Sales"].iloc[-2]
+            growth_rate = ((latest_sales - previous_sales) / previous_sales * 100) if previous_sales != 0 else 0
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Latest Month Sales", f"${latest_sales:,.0f}")
+            with col2:
+                st.metric("Previous Month Sales", f"${previous_sales:,.0f}")  
+            with col3:
+                st.metric("Month-over-Month Growth", f"{growth_rate:.1f}%")
+        else:
+            st.info("Need at least 2 months of data for growth calculations")
+    except Exception as e:
+        st.info("Growth rate calculation requires more data points")
 
 # Footer with data info
 st.markdown("---")
