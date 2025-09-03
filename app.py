@@ -25,16 +25,31 @@ def load_data():
         if df.empty:
             st.error("Dataset is empty")
             return None
-            
-        # Date processing
-        df["Order Date"] = pd.to_datetime(df["Order Date"])
-        df["Month"] = df["Order Date"].dt.to_period("M").astype(str)
-        df["Quarter"] = df["Order Date"].dt.to_period("Q").astype(str)
-        df["Year"] = df["Order Date"].dt.year
         
-        # Calculated metrics
-        df["Profit Margin"] = (df["Profit"] / df["Sales"] * 100).round(2)
-        df["Days_Since_Order"] = (datetime.now() - df["Order Date"]).dt.days
+        # Check for required columns
+        required_columns = ["Order Date", "Region", "Category", "Sales", "Profit"]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            st.error(f"Missing required columns: {missing_columns}")
+            return None
+            
+        # Date processing with error handling
+        try:
+            df["Order Date"] = pd.to_datetime(df["Order Date"])
+            df["Month"] = df["Order Date"].dt.to_period("M").astype(str)
+            df["Quarter"] = df["Order Date"].dt.to_period("Q").astype(str)
+            df["Year"] = df["Order Date"].dt.year
+        except Exception as e:
+            st.error(f"Error processing dates: {str(e)}")
+            return None
+        
+        # Calculated metrics with error handling
+        try:
+            df["Profit Margin"] = (df["Profit"] / df["Sales"] * 100).fillna(0).round(2)
+            df["Days_Since_Order"] = (datetime.now() - df["Order Date"]).dt.days
+        except Exception as e:
+            st.warning(f"Error calculating derived metrics: {str(e)}")
+            # Continue without derived metrics
         
         return df
         
